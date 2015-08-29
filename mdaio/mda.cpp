@@ -309,7 +309,7 @@ Mda Mda::transpose() const {
 	jfree(size);
 	return ret;
 }
-bool Mda::read(char *path) {
+bool Mda::read(const char *path) {
 	allocate(1, 1);
 
 	FILE *inf=jfopen(path,"rb");
@@ -425,7 +425,7 @@ unsigned char MdaPrivate::read_unsigned_char(FILE *inf) {
 	return ret;
 }
 
-bool Mda::write(char *path) {
+bool Mda::write(const char *path) {
 
 	FILE *outf=jfopen(path,"wb");
 	if (!outf) {
@@ -438,6 +438,11 @@ bool Mda::write(char *path) {
 	jfclose(outf);
 	
 	return ret;
+}
+
+double *Mda::dataPtr()
+{
+	return d->m_data_real;
 }
 
 bool MdaPrivate::do_write(FILE *outf) {

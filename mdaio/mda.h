@@ -2,14 +2,13 @@
 #define mda_H
 
 #define MDA_MAX_DIMS 50
-#define MDA_MAX_SIZE 512 * 512 * 512
+#define MDA_MAX_SIZE (1e10)
 #define MDA_TYPE_COMPLEX -1
 #define MDA_TYPE_BYTE -2
 #define MDA_TYPE_REAL -3
 #define MDA_TYPE_SHORT -4
 #define MDA_TYPE_INT32 -5
 #define MDA_TYPE_UINT16 -6
-
 
 class MdaPrivate;
 class Mda {
@@ -48,8 +47,9 @@ public:
 	Mda getDataXZ(int num_inds,int *inds) const;
 	Mda getDataYZ(int num_inds,int *inds) const;
 	Mda transpose() const;
-	bool read(char *path);
-	bool write(char *path);
+	bool read(const char *path);
+	bool write(const char *path);
+	double *dataPtr();
 	
 private:
 	MdaPrivate *d;
