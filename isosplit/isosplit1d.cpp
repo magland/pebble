@@ -17,12 +17,13 @@ void jisotonic_updown(int N,double *out,double *in,double *weights) {
 	double *B2=(double *)malloc(sizeof(double)*N);
 	double *MSE2=(double *)malloc(sizeof(double)*N);
 	double *in_reversed=(double *)malloc(sizeof(double)*N);
-	double *weights_reversed=(double *)malloc(sizeof(double)*N);
+    double *weights_reversed=0;
 
+    for (int j=0; j<N; j++) {in_reversed[j]=in[N-1-j];}
 	if (weights) {
-		for (int j=0; j<N; j++) {in_reversed[j]=in[N-1-j]; weights_reversed[j]=weights[N-1-j];}
+        weights_reversed=(double *)malloc(sizeof(double)*N);
+        for (int j=0; j<N; j++) {weights_reversed[j]=weights[N-1-j];}
 	}
-	else weights_reversed=0;
 	jisotonic(N,B1,MSE1,in,weights);
 	jisotonic(N,B2,MSE2,in_reversed,weights_reversed);
 	for (int j=0; j<N; j++) MSE1[j]+=MSE2[N-1-j];
@@ -87,54 +88,49 @@ void sort(int N,double *out,double *in) {
 //	for (int j=0; j<N; j++) out[j]=in0[j];
 }
 
-void sort(int N,double *inout) {
-	quick_sort(inout,N);
-//	QVector<double> in0(N);
-//	for (int j=0; j<N; j++) in0[j]=inout[j];
-//	qSort(in0);
-//	for (int j=0; j<N; j++) inout[j]=in0[j];
-}
-
-bool get_isosplit_curve(int curve_len,int N,double *curve,double &cutpoint,double *X,int minsize) {
+bool get_isosplit_curve(int curve_len,int N,double *curve,double &cutpoint,double *X_in,int minsize) {
 	QTime timer; timer.start();
 	if (N<minsize*2) {
 		for (int jj=0; jj<curve_len; jj++) curve[jj]=0;
 		cutpoint=0;
 		return true;
 	}
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
-	sort(N,X);
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    Mda X_mda; X_mda.allocate(1,N); double *X=X_mda.dataPtr();
+    sort(N,X,X_in);
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
 	Mda spacings_mda; spacings_mda.allocate(1,N); double *spacings=spacings_mda.dataPtr();
 	spacings[0]=X[1]-X[0];
 	spacings[N-1]=X[N-1]-X[N-2];
 	for (int j=1; j<N-1; j++) {
 		spacings[j]=(X[j+1]-X[j-1])/2;
 		if (spacings[j]<=0) {
-			printf("ERROR: in get_isosplit_curve, spacings must be strictly positive -- did you forget to sort, or are the datapoints not distinct?\n");
+            free(X);
+            printf ("ERROR: in get_isosplit_curve, spacings must be strictly positive -- did you forget to sort, or are the datapoints not distinct?\n");
 			return false;
 		}
 	}
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
 	Mda logdensity_mda; logdensity_mda.allocate(1,N); double *logdensity=logdensity_mda.dataPtr();
 	Mda sqrt_spacings_mda; sqrt_spacings_mda.allocate(1,N); double *sqrt_spacings=sqrt_spacings_mda.dataPtr();
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
 	for (int j=0; j<N; j++) {
 		logdensity[j]=log(1/spacings[j]);
 		sqrt_spacings[j]=sqrt(spacings[j]);
 	}
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
 	Mda fit1_mda; fit1_mda.allocate(1,N); double *fit1=fit1_mda.dataPtr();
 	Mda resid1_mda; resid1_mda.allocate(1,N); double *resid1=resid1_mda.dataPtr();
 	Mda fit2_mda; fit2_mda.allocate(1,N); double *fit2=fit2_mda.dataPtr();
 	Mda fit2_sorted_mda; fit2_sorted_mda.allocate(1,N); double *fit2_sorted=fit2_sorted_mda.dataPtr();
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+
 	jisotonic_updown(N,fit1,logdensity,0);
 
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
 	for (int j=0; j<N; j++) resid1[j]=logdensity[j]-fit1[j];
 	jisotonic_downup(N,fit2,resid1,sqrt_spacings);
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
 	double mean_fit2=0;
 	for (int j=0; j<N; j++) {
 		mean_fit2+=fit2[j];
@@ -145,9 +141,9 @@ bool get_isosplit_curve(int curve_len,int N,double *curve,double &cutpoint,doubl
 	}
 	fit2=&fit2[minsize-1];
 	N=N-2*minsize+2;
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
 	sort(N,fit2_sorted,fit2);
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
 	double sum0=0;
 	for (int k=0; k<curve_len; k++) {
 		if (k<curve_len) {
@@ -164,7 +160,7 @@ bool get_isosplit_curve(int curve_len,int N,double *curve,double &cutpoint,doubl
 			minind=j;
 		}
 	}
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
 	minind+=minsize-1;
 	if (minind==0) {cutpoint=X[0]; return true;}
 	if (minind==N-1) {cutpoint=X[N-1]; return true;}
@@ -254,21 +250,21 @@ void load_calibration_file(int N) {
 
 bool read_isosplit_calibration(int N,QVector<double> &avg,QVector<double> &stdev,QVector<double> &scores) {
 	if (s_calibration_dir.isEmpty()) set_calibration_dir();
-	if (s_calibration_dir.isEmpty()) {printf("Error: unable to find isosplit calibration directory (isosplit_calibration)\n"); return false;}
+    if (s_calibration_dir.isEmpty()) {printf ("Error: unable to find isosplit calibration directory (isosplit_calibration)\n"); return false;}
 	if (s_calibration_Ns.isEmpty()) set_calibration_Ns();
 	int ii=-1;
 	while ((ii+2<s_calibration_Ns.count())&&(s_calibration_Ns[ii+1]<=N)) ii++;
-	if ((ii<0)||(ii+1>=s_calibration_Ns.count())) {printf("Error: calibration out of range (N=%d)\n",N); return false;}
+    if ((ii<0)||(ii+1>=s_calibration_Ns.count())) {printf ("Error: calibration out of range (N=%d)\n",N); return false;}
 	int N1=s_calibration_Ns[ii];
 	int N2=s_calibration_Ns[ii+1];
 	if (N1==N) N2=N1;
 	if (!s_calibration_files.contains(N1)) {
 		load_calibration_file(N1);
-		if (!s_calibration_files.contains(N1)) {printf("Error: unable to find calibration file (N=%d)\n",N1); return false;}
+        if (!s_calibration_files.contains(N1)) {printf ("Error: unable to find calibration file (N=%d)\n",N1); return false;}
 	}
 	if (!s_calibration_files.contains(N2)) {
 		load_calibration_file(N2);
-		if (!s_calibration_files.contains(N2)) {printf("Error: unable to find calibration file (N=%d)\n",N2); return false;}
+        if (!s_calibration_files.contains(N2)) {printf ("Error: unable to find calibration file (N=%d)\n",N2); return false;}
 	}
 	if (N1==N2) {
 		calibration_file *CF=&s_calibration_files[N1];
@@ -294,29 +290,29 @@ bool isosplit1d(int N,int *labels,double &pp,double *X) {
 	QTime timer; timer.start();
 	int minsize=4; //hard coded to be consistent with calibration
 
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
 	QVector<double> avg(N),stdev(N),scores(N);
 	if (!read_isosplit_calibration(N,avg,stdev,scores)) {
-		printf("ERROR: problem in read_isosplit_calibration.\n");
+        printf ("ERROR: problem in read_isosplit_calibration.\n");
 		return false;
 	}
 	int curve_len=avg.count();
 	if (curve_len==0) {
-		printf("ERROR: calibration not performed for N=%d\n",N);
+        printf ("ERROR: calibration not performed for N=%d\n",N);
 		return false;
 	}
 	int num_trials=scores.count();
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
 
 	//compute the curve and cutpoint
 	Mda curve_mda; curve_mda.allocate(1,curve_len); double *curve=curve_mda.dataPtr();
 	double cutpoint;
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
 	if (!get_isosplit_curve(curve_len,N,curve,cutpoint,X,minsize)) {
-		printf("ERROR in get_isosplit_curve\n");
+        printf ("ERROR in get_isosplit_curve\n");
 		return false;
 	}
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
 
 	//compute the score by comparing to calibration avg and stdev and then compute the pp
 	double score0=0;
@@ -340,14 +336,14 @@ bool isosplit1d(int N,int *labels,double &pp,double *X) {
 	else {
 		pp=0;
 	}
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
 
 	//set the labels
 	for (int kk=0; kk<N; kk++) {
 		if (X[kk]<cutpoint) labels[kk]=1;
 		else labels[kk]=2;
 	}
-	qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
+    //qDebug() << "ELAPSED" << __FILE__ << __LINE__ << timer.elapsed(); timer.start();
 
 	return true;
 }

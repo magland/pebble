@@ -34,13 +34,12 @@ QVector<int> do_kmeans(Mda &X,int K) {
 
 	//initialize the centroids
 	QList<int> initial=choose_random_indices(N,K);
-	int ct1=0;
 	for (int j=0; j<K; j++) {
 		int ind=initial[j];
-		int ct2=Xptr[ind*M];
+        int jj=ind*M;
+        int ii=j*M;
 		for (int m=0; m<M; m++) {
-			centroids[ct1]=Xptr[ct2];
-			ct1++; ct2++;
+            centroids[m+ii]=Xptr[m+jj];
 		}
 	}
 
@@ -238,7 +237,7 @@ void attempt_to_redistribute_two_clusters(QVector<int> &ii1,QVector<int> &ii2,bo
 		qWarning() << "Unexpected problem in isosplit1d: NN =" << NN;
 	}
 	if (pp>split_threshold) {
-		//It was a statistically significant split -- so let's redistribute!
+        //It was a statistically significant split -- so let's redistribute!
 		for (int ii=0; ii<NN; ii++) {
 			if (labels[ii]==1) {
 				ii1 << inds12[ii];
@@ -292,11 +291,11 @@ double compute_centroid_distance(Mda &centroids,int k1,int k2) {
 }
 
 QVector<int> isosplit(Mda &X) {
-	int K_initial=10;
+    int K_initial=25;
 	double split_threshold=0.9;
 
 	int M=X.N1();
-	//int N=X.N2();
+    int N=X.N2();
 	QVector<int> labels=do_kmeans(X,K_initial);
 
 	bool active_labels[K_initial];
@@ -383,5 +382,17 @@ QVector<int> isosplit(Mda &X) {
 			distances.setValue(-1,label1,label2);
 		}
 	}
-	return labels;
+    //remap the labels
+    int labels_map[K_initial];
+    int kk=1;
+    for (int k=0; k<K_initial; k++) {
+        if (active_labels[k]) {
+            labels_map[k]=kk;
+            kk++;
+        }
+        else labels_map[k]=0;
+    }
+    QVector<int> labels2;
+    for (int n=0; n<N; n++) labels2 << labels_map[labels[n]];
+    return labels2;
 }
