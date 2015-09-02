@@ -33,5 +33,5 @@ SOURCES += find_critical_times.cpp
 INCLUDEPATH += isosplit
 DEPENDPATH += isosplit
 VPATH += isosplit
-HEADERS += jisotonic.h isosplit1d.h
-SOURCES += jisotonic.cpp isosplit1d.cpp
+HEADERS += jisotonic.h isosplit1d.h isosplit.h
+SOURCES += jisotonic.cpp isosplit1d.cpp isosplit.cpp

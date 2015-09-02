@@ -2,8 +2,8 @@
 #define isosplit_h
 
 #include "mda.h"
-#include <QList>
+#include <QVector>
 
-QList<int> isosplit(Mda &X);
+QVector<int> isosplit(Mda &X);
 
 #endif

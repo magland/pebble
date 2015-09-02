@@ -1,11 +1,36 @@
 #include "isosplit.h"
 #include <QSet>
+#include <QVector>
+#include <QDebug>
+#include <math.h>
+#include "isosplit1d.h"
 
-QList<int> do_kmeans(Mda &X,K) {
+//choose K distinct (sorted) integers between 0 and N-1. If K>N then it will repeat the last integer a suitable number of times
+QList<int> choose_random_indices(int N,int K) {;
+	QList<int> ret;
+	if (K>=N) {
+		for (int i=0; i<N; i++) ret << i;
+		while (ret.count()<K) ret << N-1;
+		return ret;
+	}
+	QSet<int> theset;
+	while (theset.count()<K) {
+		int ind=(qrand()%N);
+		theset.insert(ind);
+	}
+	ret=theset.toList();
+	qSort(ret);
+	return ret;
+}
+
+//do k-means with K clusters -- X is MxN representing N points in M-dimensional space. Returns a labels vector of size N.
+QVector<int> do_kmeans(Mda &X,int K) {
 	int M=X.N1();
 	int N=X.N2();
 	double *Xptr=X.dataPtr();
 	Mda centroids_mda; centroids_mda.allocate(M,K); double *centroids=centroids_mda.dataPtr();
+	QVector<int> labels; for (int i=0; i<N; i++) labels << -1;
+	int *counts=(int *)malloc(sizeof(int)*K);
 
 	//initialize the centroids
 	QList<int> initial=choose_random_indices(N,K);
@@ -18,22 +43,268 @@ QList<int> do_kmeans(Mda &X,K) {
 			ct1++; ct2++;
 		}
 	}
+
+	bool something_changed=true;
+	while (something_changed) {
+		something_changed=false;
+		//Assign the labels
+		for (int n=0; n<N; n++) {
+			int jj=n*M;
+			double best_distsqr=0;
+			int best_k=0;
+			for (int k=0; k<K; k++) {
+				int ii=k*M;
+				double tmp=0;
+				for (int m=0; m<M; m++) {
+					tmp+=(centroids[m+ii]-Xptr[m+jj])*(centroids[m+ii]-Xptr[m+jj]);
+				}
+				if ((k==0)||(tmp<best_distsqr)) {
+					best_distsqr=tmp;
+					best_k=k;
+				}
+			}
+			if (labels[n]!=best_k) {
+				labels[n]=best_k;
+				something_changed=true;
+			}
+		}
+
+		if (something_changed) {
+			//Compute the centroids
+			for (int k=0; k<K; k++) {
+				int ii=k*M;
+				for (int m=0; m<M; m++) {
+					centroids[m+ii]=0;
+				}
+				counts[k]=0;
+			}
+			for (int n=0; n<N; n++) {
+				int jj=n*M;
+				int k=labels[n];
+				int ii=k*M;
+				for (int m=0; m<M; m++) {
+					centroids[m+ii]+=Xptr[m+jj];
+				}
+				counts[k]++;
+			}
+			for (int k=0; k<K; k++) {
+				int ii=k*M;
+				if (counts[k]) {
+					for (int m=0; m<M; m++)
+						centroids[m+ii]/=counts[k];
+				}
+			}
+		}
+	}
+
+	free(counts);
+
+	return labels;
 }
 
-QList<int> isosplit(Mda &X) {
+//compute the centroids: X is MxN, labels are between 0 and K-1, and the return array is MxK
+Mda compute_centroids(Mda &X,const QVector<int> &labels,int K) {
+	double *Xptr=X.dataPtr();
+	int M=X.N1();
+	int N=X.N2();
+	Mda ret; ret.allocate(M,K); double *retptr=ret.dataPtr();
+	int *counts=(int *)malloc(sizeof(int)*K);
+	for (int k=0; k<K; k++) counts[k]=0;
+	
+	if (labels.count()!=N) {
+		qWarning() << "Unexpected problem in compute_centroids at line:" << __LINE__;
+		return ret;
+	}
+	for (int n=0; n<N; n++) {
+		int ii=n*M;
+		int k=labels[n];
+		int jj=k*M;
+		for (int m=0; m<M; m++) {
+			retptr[m+jj]+=Xptr[m+ii];
+		}
+		counts[k]++;
+	}
+	for (int k=0; k<K; k++) {
+		if (counts[k]) {
+			int jj=k*M;
+			for (int m=0; m<M; m++) {
+				 retptr[m+jj]/=counts[k];
+			}
+		}
+	}
+
+	free(counts);
+
+	return ret;
+}
+
+//Compute the square matrix of distances between K vectors in M-dimensional space. Centroids is MxK and the output is KxK
+Mda compute_distances(Mda &centroids) {
+	int M=centroids.N1();
+	int K=centroids.N2();
+	double *Cptr=centroids.dataPtr();
+	Mda ret; ret.allocate(K,K);
+	for (int k2=0; k2<K; k2++) {
+		int ii2=k2*M;
+		for (int k1=k2; k1<K; k1++) {
+			int ii1=k1*M;
+			double tmp=0;
+			for (int m=0; m<M; m++) {
+				tmp+=(Cptr[m+ii1]-Cptr[m+ii2])*(Cptr[m+ii1]-Cptr[m+ii2]);
+			}
+			double dist=sqrt(tmp);
+			ret.setValue(dist,k1,k2);
+			ret.setValue(dist,k2,k1);
+		}
+	}
+	return ret;
+}
+
+//find the best pair of labels (label1,label2) for the next iteration of isosplit
+//Chooses them based on minimizing the distance (distances: KxK) for the active labels not yet attempted
+//If none found, returns label1=label2=-1
+void find_best_pair(int &label1,int &label2,bool *active_labels,Mda &distances,QSet<double> &attempted_redistributions) {
+	double best_dist=-1;
+	int K=distances.N1();
+	double *Dptr=distances.dataPtr();
+	label1=-1;
+	label2=-1;
+	for (int k2=0; k2<K; k2++) {
+		if (active_labels[k2]) {
+			int ii2=k2*K;
+			for (int k1=k2+1; k1<K; k1++) {
+				if (active_labels[k1]) {
+					double dist=Dptr[k1+ii2];
+					if (dist>=0) {
+						if (!attempted_redistributions.contains(dist)) {
+							if ((best_dist<0)||(dist<best_dist)) {
+								best_dist=dist;
+								label1=k1;
+								label2=k2;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+//Return the vector of all the indices where labels[i]==label
+QVector<int> find_inds_for_label(const QVector<int> &labels,int label) {
+	QVector<int> ret;
+	for (int i=0; i<labels.count(); i++)
+		if (labels[i]==label) ret << i;
+	return ret;
+}
+
+void attempt_to_redistribute_two_clusters(QVector<int> &ii1,QVector<int> &ii2,bool &redistributed,  Mda &X,const QVector<int> &inds1,const QVector<int> &inds2,double *C1,double *C2,double split_threshold) {
+	ii1.clear();
+	ii2.clear();
+	redistributed=false;
+
+	int M=X.N1();
+	//int N=X.N2();
+	double *Xptr=X.dataPtr();
+	QVector<int> inds12=inds1; inds12.append(inds2);
+	//X1=X(:,inds1);
+	//X2=X(:,inds2);
+	//the vector from one centroid to another
+	QVector<double> V(M);
+	for (int i=0; i<M; i++) V[i]=C1[i]-C2[i];
+	double sumsqrV=0; for (int i=0; i<M; i++) sumsqrV+=V[i]*V[i];
+	if (!sumsqrV) {
+		qWarning() << "ISOSPLIT: vector V is null";
+		return;
+	}
+	for (int i=0; i<M; i++) V[i]/=sqrt(sumsqrV);
+
+	//project onto the line connecting the centroids
+	int NN=inds12.count();
+	double *XX=(double *)malloc(sizeof(double)*NN);
+	int *labels=(int *)malloc(sizeof(int)*NN);
+	for (int ii=0; ii<NN; ii++) {
+		double tmp=0;
+		int aa=inds12[ii]*M;
+		for (int m=0; m<M; m++) {
+			tmp+=Xptr[m+aa]*V[m];
+		}
+		XX[ii]=tmp;
+	}
+
+	//This is the core procedure -- split based on isotonic regression
+	double pp;
+	if (!isosplit1d(NN,labels,pp,XX)) {
+		qWarning() << "Unexpected problem in isosplit1d: NN =" << NN;
+	}
+	if (pp>split_threshold) {
+		//It was a statistically significant split -- so let's redistribute!
+		for (int ii=0; ii<NN; ii++) {
+			if (labels[ii]==1) {
+				ii1 << inds12[ii];
+			}
+			else {
+				ii2 << inds12[ii];
+			}
+		}
+	}
+	else {
+		//Otherwise, merge into the first
+		for (int ii=0; ii<NN; ii++) {
+			ii1 << inds12[ii];
+		}
+	}
+
+	//We have redistributed, unless everything is still the same.
+	redistributed=true;
+	if ((ii1.count()==inds1.count())&&(ii2.count()==inds2.count())) {
+		QSet<int> s1=QSet<int>::fromList(ii1.toList());
+		bool same1=true;
+		for (int ii=0; ii<inds1.count(); ii++) {
+			if (!s1.contains(inds1[ii])) same1=false;
+		}
+		if (same1) {
+			QSet<int> s2=QSet<int>::fromList(ii2.toList());
+			bool same2=true;
+			for (int ii=0; ii<inds2.count(); ii++) {
+				if (!s2.contains(inds2[ii])) same2=false;
+			}
+			if (same2) redistributed=false;
+		}
+	}
+
+	free(XX);
+	free(labels);
+}
+
+//compute the distance between two centrods. centroids is MxK, k1,k2 are between 0 and K-1
+double compute_centroid_distance(Mda &centroids,int k1,int k2) {
+	int M=centroids.N1();
+	//int K=centroids.N2();
+	double *Cptr=centroids.dataPtr();
+	int ii1=k1*M;
+	int ii2=k2*M;
+	double ret=0;
+	for (int m=0; m<M; m++) {
+		ret+=(Cptr[m+ii1]-Cptr[m+ii2])*(Cptr[m+ii1]-Cptr[m+ii2]);
+	}
+	return sqrt(ret);
+}
+
+QVector<int> isosplit(Mda &X) {
 	int K_initial=10;
 	double split_threshold=0.9;
 
 	int M=X.N1();
-	int N=X.N2();
-	QList<int> labels;
-
-	labels=do_kmeans(X,K_initial);
+	//int N=X.N2();
+	QVector<int> labels=do_kmeans(X,K_initial);
 
 	bool active_labels[K_initial];
 	for (int ii=0; ii<K_initial; ii++) active_labels[ii]=true;
 	Mda centroids=compute_centroids(X,labels,K_initial); //M x K_initial
 	Mda distances=compute_distances(centroids); //K_initial x K_initial
+
+	double *Cptr=centroids.dataPtr();
 
 	//Here is a set of codes for the attempted cluster splits/redistributions -- we don't
 	//ever want to repeat any of these.
@@ -42,19 +313,19 @@ QList<int> isosplit(Mda &X) {
 	int num_iterations=0;
 	while (true) {
 		num_iterations++;
-		QList<int> old_labels=labels;
+		QVector<int> old_labels=labels;
 		//find the closest two clusters to check for redistribution/merging
 		//we want the centroids to be as close as possible, but we want to
 		//exclude the pairs we have tried previously
 		int label1,label2;
 		find_best_pair(label1,label2,active_labels,distances,attempted_redistributions);
-		if (label1==0) break; //this means we've tried everything... so we are done!
+		if (label1<0) break; //this means we've tried everything... so we are done!
 		attempted_redistributions.insert(distances.value(label1,label2)); //we assume the distance between centroids uniquely defines this attempt!
-		QList<int> inds1=find_inds_for_label(labels,label1);
-		QList<int> inds2=find_inds_for_label(labels,label2);
-		QList<int> ii1,ii2;
+		QVector<int> inds1=find_inds_for_label(labels,label1);
+		QVector<int> inds2=find_inds_for_label(labels,label2);
+		QVector<int> ii1,ii2;
 		bool redistributed;
-		attempt_to_redistribute_two_clusters(ii1,ii2,redistributed, X,inds1,inds2,centroid1,centroid2,split_threshold);
+		attempt_to_redistribute_two_clusters(ii1,ii2,redistributed, X,inds1,inds2,&Cptr[label1*M],&Cptr[label2*M],split_threshold);
 		if (redistributed) {
 			//okay, we've changed something. Now let's updated the labels
 			for (int jj=0; jj<ii1.count(); jj++) {
@@ -112,43 +383,5 @@ QList<int> isosplit(Mda &X) {
 			distances.setValue(-1,label1,label2);
 		}
 	}
+	return labels;
 }
-
-/*
-
-	if (redistributed)
-		%okay, we've changed something. Now let's update the labels
-		if (opts.verbose)
-			fprintf('  Redistributed (%d,%d)->(%d,%d)\n',length(inds1),length(inds2),length(ii1),length(ii2));
-		end;
-		labels(ii1)=label1;
-		labels(ii2)=label2;
-		centroids(:,label1)=mean(X(:,ii1),2);
-		tmp0=sum((centroids-repmat(centroids(:,label1),1,size(centroids,2))).^2,1);
-		tmp0(ismember(tmp0,attempted_redistributions))=inf;
-		distances(:,label1)=tmp0;
-		distances(label1,:)=distances(:,label1); distances(label1,label1)=inf;
-		if (length(ii2>0))
-			centroids(:,label2)=mean(X(:,ii2),2);
-			tmp0=sum((centroids-repmat(centroids(:,label2),1,size(centroids,2))).^2,1);
-			tmp0(ismember(tmp0,attempted_redistributions))=inf;
-			distances(:,label2)=tmp0;
-			distances(label2,:)=distances(:,label2); distances(label2,label2)=inf;
-		else
-			centroids(:,label2)=0;
-		end;
-		[labels,centroids,distances]=normalize_labels(labels,centroids,distances); % we may have eliminated a label, so let's shift the labelings down
-	else
-		distances(label1,label2)=inf;
-		distances(label2,label1)=inf;
-	end;
-
-	% The following might be a bad idea.
-	if (num_iterations_with_same_number_of_clusters>opts.max_iterations_per_number_clusters)
-		warning(sprintf('%d iterations with same number of clusters.... stopping',num_iterations_with_same_number_of_clusters));
-		return;
-	end;
-	%toc
-
-*/
-
