@@ -1,4 +1,4 @@
-//#include <QCoreApplication>
+#include <QCoreApplication>
 #include "mda.h"
 #include <QString>
 #include <QDebug>
@@ -6,6 +6,8 @@
 #include <QTime>
 #include <QDir>
 #include "find_critical_times.h"
+#include "isosplit.h"
+#include "do_pca.h"
 
 void split_into_channels(const QString &inpath,const QString &outpath) {
 	Mda X;
@@ -65,13 +67,33 @@ Mda extract_clips(Mda &X,int clip_size,QVector<int> clip_times) {
 	return clips;
 }
 
+int find_max(const QVector<int> &X) {
+    int ret=X.value(0);
+    for (int i=0; i<X.count(); i++) {
+        ret=qMax(ret,X.value(0));
+    }
+    return ret;
+}
+
+Mda compute_features_from_clips(Mda &clips,int num_features) {
+    int M=clips.N1();
+    int T=clips.N2();
+    int N=clips.N3();
+    int MT=M*T;
+    Mda features; features.allocate(num_features,N);
+    do_pca(MT,N,num_features,features.dataPtr(),clips.dataPtr());
+    return features;
+}
+
 int main(int argc, char *argv[])
 {
+    QCoreApplication app(argc,argv);
+
 	QString channels_path="/home/magland/data/EJ/channels";
 	QTime timer;
 
 	// Split into channels
-	if (0) {
+    if (0) {
 		if (!QFile::exists(channels_path)) QDir(QFileInfo(channels_path).path()).mkdir(QFileInfo(channels_path).fileName());
 		split_into_channels(
 					"/home/magland/data/EJ/Spikes_all_channels_filtered.mda",
@@ -80,8 +102,9 @@ int main(int argc, char *argv[])
 	}
 
 	int clip_size=50;
-	int channel_num=0;
+    int channel_num=20;
 	int find_critical_times_radius=150;
+    int num_features=3;
 
 	// compute adjacency matrix
 	QString locations_path="/home/magland/dev/pebble/testdata/locations.mda";
@@ -110,20 +133,29 @@ int main(int argc, char *argv[])
 	//Find critical times
 	printf("Finding critical_times... "); timer.start();
 	QVector<int> critical_times=find_critical_times(channel0_data,find_critical_times_radius);
+    int num_clips=critical_times.count();
+    printf("found %d critical times.... ",num_clips);
 	printf("Elapsed (ms): %d\n",timer.elapsed());
 
 	//Extracting clips
 	printf("Extracting clips... "); timer.start();
-	Mda clips=extract_clips(patch_data,clip_size,critical_times); //patch_size x clip_size
+    Mda clips=extract_clips(patch_data,clip_size,critical_times); //patch_size x clip_size x num_clips
 	printf("Elapsed (ms): %d\n",timer.elapsed());
 
-	//here is where we would upsample
+
+    //here is where we would upsample and time align?
+
+    //Features
+    printf("Computing features... "); timer.start();
+    Mda features=compute_features_from_clips(clips,num_features); //num_features x num_clips
+    printf("Elapsed (ms): %d\n",timer.elapsed());
 
 	//Clustering
 	printf("Clustering... "); timer.start();
+    QVector<int> labels=isosplit(features);
 	printf("Elapsed (ms): %d\n",timer.elapsed());
+
+    printf("Found %d clusters.\n",find_max(labels));
 
 	return 0;
 }
-
-

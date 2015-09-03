@@ -105,8 +105,7 @@ bool get_isosplit_curve(int curve_len,int N,double *curve,double &cutpoint,doubl
 	for (int j=1; j<N-1; j++) {
 		spacings[j]=(X[j+1]-X[j-1])/2;
 		if (spacings[j]<=0) {
-            free(X);
-            printf ("ERROR: in get_isosplit_curve, spacings must be strictly positive -- did you forget to sort, or are the datapoints not distinct?\n");
+            printf ("ERROR: in get_isosplit_curve, spacings must be strictly positive -- did you forget to sort, or are the datapoints not distinct? spacings[%d]=%g\n",j,spacings[j]);
 			return false;
 		}
 	}

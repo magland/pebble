@@ -18,6 +18,9 @@ TEMPLATE = app
 
 SOURCES += main.cpp
 
+HEADERS += do_pca.h
+SOURCES += do_pca.cpp
+
 INCLUDEPATH += mdaio
 DEPENDPATH += mdaio
 VPATH += mdaio
