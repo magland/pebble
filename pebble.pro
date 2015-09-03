@@ -18,6 +18,9 @@ TEMPLATE = app
 
 SOURCES += main.cpp
 
+HEADERS += parse_command_line_params.h
+SOURCES += parse_command_line_params.cpp
+
 HEADERS += do_pca.h
 SOURCES += do_pca.cpp
 

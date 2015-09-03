@@ -2,5 +2,5 @@
 
 for i in $(seq 0 511);
 do
-	srun bin/pebble $i &
+	srun bin/pebble stage1 --channel=$i &
 done
