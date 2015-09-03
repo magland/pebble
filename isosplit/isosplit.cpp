@@ -103,17 +103,20 @@ QVector<int> do_kmeans(Mda &X,int K) {
 
 //compute the centroids: X is MxN, labels are between 0 and K-1, and the return array is MxK
 Mda compute_centroids(Mda &X,const QVector<int> &labels,int K) {
-	double *Xptr=X.dataPtr();
-	int M=X.N1();
-	int N=X.N2();
-	Mda ret; ret.allocate(M,K); double *retptr=ret.dataPtr();
-	int *counts=(int *)malloc(sizeof(int)*K);
+    double *Xptr=X.dataPtr();
+    int M=X.N1();
+    int N=X.N2();
+    Mda ret; ret.allocate(M,K); double *retptr=ret.dataPtr();
+    if (labels.count()!=N) {
+        qWarning() << "Unexpected problem in compute_centroids at line:" << __LINE__;
+        return ret;
+    }
+
+    int *counts=(int *)malloc(sizeof(int)*K);
 	for (int k=0; k<K; k++) counts[k]=0;
 	
-	if (labels.count()!=N) {
-		qWarning() << "Unexpected problem in compute_centroids at line:" << __LINE__;
-		return ret;
-	}
+
+
 	for (int n=0; n<N; n++) {
 		int ii=n*M;
 		int k=labels[n];
@@ -312,6 +315,7 @@ QVector<int> isosplit(Mda &X) {
 	int num_iterations=0;
 	while (true) {
 		num_iterations++;
+        //if (num_iterations>35) return labels;
 		QVector<int> old_labels=labels;
 		//find the closest two clusters to check for redistribution/merging
 		//we want the centroids to be as close as possible, but we want to
@@ -324,7 +328,7 @@ QVector<int> isosplit(Mda &X) {
 		QVector<int> inds2=find_inds_for_label(labels,label2);
 		QVector<int> ii1,ii2;
 		bool redistributed;
-		attempt_to_redistribute_two_clusters(ii1,ii2,redistributed, X,inds1,inds2,&Cptr[label1*M],&Cptr[label2*M],split_threshold);
+        attempt_to_redistribute_two_clusters(ii1,ii2,redistributed, X,inds1,inds2,&Cptr[label1*M],&Cptr[label2*M],split_threshold);
 		if (redistributed) {
 			//okay, we've changed something. Now let's updated the labels
 			for (int jj=0; jj<ii1.count(); jj++) {
@@ -336,24 +340,28 @@ QVector<int> isosplit(Mda &X) {
 			//recompute the centroids
 			{
 				double tmp1[M];
+                for (int jj=0; jj<M; jj++) tmp1[jj]=0;
 				for (int jj=0; jj<ii1.count(); jj++) {
 					for (int mm=0; mm<M; mm++) {
 						tmp1[mm]+=X.value(mm,ii1[jj]);
 					}
 				}
 				for (int mm=0; mm<M; mm++) {
-					centroids.setValue(tmp1[mm]/M,mm,label1);
+                    if (ii1.count())
+                        centroids.setValue(tmp1[mm]/ii1.count(),mm,label1);
 				}
 			}
 			if (ii2.count()>0) {
 				double tmp2[M];
+                for (int jj=0; jj<M; jj++) tmp2[jj]=0;
 				for (int jj=0; jj<ii2.count(); jj++) {
 					for (int mm=0; mm<M; mm++) {
 						tmp2[mm]+=X.value(mm,ii2[jj]);
 					}
 				}
 				for (int mm=0; mm<M; mm++) {
-					centroids.setValue(tmp2[mm]/M,mm,label2);
+                    if (ii2.count())
+                        centroids.setValue(tmp2[mm]/ii2.count(),mm,label2);
 				}
 			}
 			else {

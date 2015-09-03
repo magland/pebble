@@ -10,6 +10,8 @@
 #define MDA_TYPE_INT32 -5
 #define MDA_TYPE_UINT16 -6
 
+#include <QString>
+
 class MdaPrivate;
 class Mda {
 public:
@@ -49,6 +51,8 @@ public:
 	Mda transpose() const;
 	bool read(const char *path);
 	bool write(const char *path);
+    bool read(const QString &path);
+    bool write(const QString &path);
 	double *dataPtr();
 	
 private:
@@ -56,10 +60,5 @@ private:
 };
 
 #endif
-
-
-	
-	
-
 	
 	
