@@ -245,7 +245,7 @@ int main(int argc, char *argv[])
 						avg[tt]+=clips.value(0,tt,jj);
 					}
 				}
-				for (int tt=0; tt<clip_size; tt++) avg[tt]/=clip_size;
+                for (int tt=0; tt<clip_size; tt++) avg[tt]/=clip_times.count();
 				for (int tt=0; tt<clip_size; tt++) {
 					spike_shapes.setValue(avg[tt],0,tt,ii);
 				}
@@ -335,12 +335,14 @@ int main(int argc, char *argv[])
 			shape.allocate(M,T);
 			for (int t=0; t<T; t++) {
 				for (int m=0; m<M; m++) {
-					double val=shape.value(m,t,neuron);
+                    double val=shapes.value(m,t,neuron);
 					shape.setValue(val,m,t);
 				}
 			}
 			printf("Elapsed (ms): %d\n",timer.elapsed());
 		}
+
+        shape.write(testdata_path+"/shape.mda"); //debug
 
 		///////////////////////////////////////////////////////////////////////////////////////////////////////////
 		//// Computing patch scores
@@ -349,30 +351,38 @@ int main(int argc, char *argv[])
 			printf("Computing patch scores... "); timer.start();
 
 			Mda patch_data;
+            Mda patch_shape;
 			int N=0;
 			int MM=patch_indices.count();
 			QTime read_timer; read_timer.start();
-			for (int ii=0; ii<MM; ii++) {
-				int m=patch_indices[ii];
+            for (int mm=0; mm<MM; mm++) {
+                int m=patch_indices[mm];
 				Mda X; X.read(QString("%1/%2.mda").arg(channels_path).arg(m));
-				if (ii==0) {
+                if (mm==0) {
 					N=X.N2();
 					patch_data.allocate(MM,N);
+                    patch_shape.allocate(MM,T);
 				}
 				for (int n=0; n<N; n++) {
-					patch_data.setValue(X.value(0,n),ii,n);
+                    patch_data.setValue(X.value(0,n),mm,n);
 				}
+                for (int t=0; t<T; t++) {
+                    patch_shape.setValue(shape.value(m,t),mm,t);
+                }
 			}
 			printf("Time for reading patch data (ms): %d\n",read_timer.elapsed());
 
+            patch_data.write(testdata_path+"/patch_data.mda"); //debug
+            patch_shape.write(testdata_path+"/patch_shape.mda"); //debug
+
 			double *kernel=(double *)malloc(sizeof(double)*MM*T);
 			double *data=(double *)malloc(sizeof(double)*MM*N);
-			double *convolution=(double *)malloc(sizeof(double)*1*N);
+            Mda convolution; convolution.allocate(1,N);
+            double *convolutionPtr=convolution.dataPtr();
 			int ct=0;
 			for (int t=0; t<T; t++) {
 				for (int mm=0; mm<MM; mm++) {
-					int m=patch_indices[mm];
-					kernel[ct]=shape.value(m,t); ct++;
+                    kernel[ct]=patch_shape.value(mm,t); ct++;
 				}
 			}
 			ct=0;
@@ -386,7 +396,7 @@ int main(int argc, char *argv[])
 			printf("Time for preparing data (ms): %d\n",timerA.elapsed());
 
 			QTime MCC_timer; MCC_timer.start();
-			multi_channel_convolution(MM,N,T,convolution,data,kernel);
+            multi_channel_convolution(MM,N,T,convolutionPtr,data,kernel);
 			printf("Time for convolution (ms): %d\n",MCC_timer.elapsed());
 
 			QTime timerB; timerB.start();
@@ -403,14 +413,15 @@ int main(int argc, char *argv[])
 			patch_scores.allocate(1,N);
 			double *ptr=patch_scores.dataPtr();
 			for (int n=0; n<N-T; n++) {
-				ptr[n]=2*convolution[n]-kernel_sumsqr;
+                ptr[n]=2*convolutionPtr[n]-kernel_sumsqr;
 			}
 			printf("Time for setting scores (ms): %d\n",timerB.elapsed());
 
 			free(kernel);
 			free(data);
-			free(convolution);
 			printf("Elapsed (ms): %d\n",timer.elapsed());
+
+            convolution.write(testdata_path+"/convolution.mda"); //debug
 		}
 
 		///////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -457,7 +468,7 @@ int main(int argc, char *argv[])
 			ct=0;
 			for (int n=0; n<N; n++) {
 				for (int mm=0; mm<MM; mm++) {
-					data[ct]=full_data.value(mm,n); ct++;
+                    data[ct]=full_data_ptr[ct]; ct++; //finish!!!
 				}
 			}
 			printf("Time for preparing full data (ms): %d\n",timerA.elapsed());
@@ -490,11 +501,14 @@ int main(int argc, char *argv[])
 					ptr[n]=2*val-kernel_sumsqr;
 				}
 				else {
-					ptr[n]=0;
+                    //ptr[n]=0;
+                    ptr[n]=ptr2[n];
 				}
 				ii_data+=MM;
 			}
 			printf("Time for setting full scores (ms): %d, # positive: %d\n",timerB.elapsed(),num_positive);
+
+            full_scores.write(testdata_path+"/full_scores.mda");
 
 			free(kernel);
 			free(data);
