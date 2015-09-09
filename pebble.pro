@@ -16,9 +16,11 @@ CONFIG   -= app_bundle
 
 TEMPLATE = app
 
-SOURCES += main.cpp
+SOURCES += main.cpp \
+    pebble_helpers.cpp
 
-HEADERS += parse_command_line_params.h
+HEADERS += parse_command_line_params.h \
+    pebble_helpers.h
 SOURCES += parse_command_line_params.cpp
 
 HEADERS += do_pca.h
