@@ -2,19 +2,31 @@
 #include <stdio.h>
 #include <math.h>
 #include "do_pca.h"
+#include <QTime>
 
 void split_into_channels(const QString &inpath,const QString &outpath) {
+	QTime timer; timer.start();
+	printf("split_into_channels... ");
 	Mda X;
 	X.read(inpath.toLatin1().data());
+	double *Xptr=X.dataPtr();
 	int M=X.N1();
 	int N=X.N2();
 	for (int ch=0; ch<M; ch++) {
 		printf("channel %d/%d\n",ch,M);
 		Mda AA; AA.allocate(1,N);
-		for (int j=0; j<N; j++) AA.setValue1(X.value(ch,j),j);
+		double *AAptr=AA.dataPtr();
+		//for (int j=0; j<N; j++) AA.setValue1(X.value(ch,j),j);
+		int k=ch;
+		for (int j=0; j<N; j++) {
+			AAptr[j]=Xptr[k];
+			k+=M;
+		}
 		QString path0=QString("%1/%2.mda").arg(outpath).arg(ch);
 		AA.write(path0.toLatin1().data());
 	}
+	int elapsed=timer.elapsed();
+	printf("Elapsed (ms): %d; %g MB/sec\n",elapsed,M*N*sizeof(double)*1e-6/(elapsed*1e-3));
 }
 
 Mda compute_adjacency_matrix(const Mda &locations) {

@@ -363,10 +363,14 @@ bool MdaPrivate::do_read(FILE *inf) {
 				m_data_real[ii] = re0;
 			}
 		} else if (data_type == MDA_TYPE_REAL) {
+			float *buf=(float *)malloc(sizeof(float)*N);
+			fread(buf,sizeof(float),N,inf);
 			for (int ii = 0; ii < N; ii++) {
-				float re0 = read_float(inf);
-				m_data_real[ii] = re0;
+				//float re0 = read_float(inf);
+				//m_data_real[ii] = re0;
+				m_data_real[ii]=buf[ii];
 			}
+			free(buf);
 		} else if (data_type == MDA_TYPE_SHORT) {
 			for (int ii = 0; ii < N; ii++) {
 				float re0 = read_short(inf);
@@ -486,10 +490,14 @@ bool MdaPrivate::do_write(FILE *outf) {
 			write_float(outf, 0);
 		}
 	} else if (m_data_type == MDA_TYPE_REAL) {
+		float *buf=(float *)malloc(sizeof(float)*N);
 		for (int i = 0; i < N; i++) {
-			float re0 = (float) m_data_real[i];
-			write_float(outf, re0);
+			buf[i]=m_data_real[i];
+			//float re0 = (float) m_data_real[i];
+			//write_float(outf, re0);
 		}
+		fwrite(buf,sizeof(float),N,outf);
+		free(buf);
 	} else if (m_data_type == MDA_TYPE_BYTE) {
 		for (int i = 0; i < N; i++) {
 			unsigned char re0 = (unsigned char) m_data_real[i];

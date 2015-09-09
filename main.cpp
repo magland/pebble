@@ -28,6 +28,25 @@ void multi_channel_convolution(int M,int N,int T,double *out,double *in,double *
 	}
 }
 
+bool lock_file(const QString &path,int timeout) {
+	QString path0=path+".lock";
+	QTime timer; timer.start();
+	while (timer.elapsed()<timeout) {
+		if (!QFile::exists(path0)) {
+			FILE *inf=fopen(path0.toLatin1(),"w");
+			if (inf) {
+				fclose(inf);
+				return true;
+			}
+		}
+	}
+	return false;
+}
+bool unlock_file(const QString &path) {
+	QString path0=path+".lock";
+	return QFile::remove(path0);
+}
+
 int main(int argc, char *argv[])
 {
     QCoreApplication app(argc,argv);
@@ -98,8 +117,15 @@ int main(int argc, char *argv[])
             Mda channel0_data;
             for (int p=0; p<patch_size; p++) {
                 QString path0=QString("%1/%2.mda").arg(channels_path).arg(patch_indices[p]);
-				qDebug() << path0;
+				/*if (!lock_file(path0,1000)) { //not sure if necessary
+					qCritical() << "Unable to lock file: " << path0;
+					return -1;
+				}*/
                 Mda channel_data; channel_data.read(path0); //1xN
+				/*if (!unlock_file(path0)) { //not sure if necessary
+					qCritical() << "Unable to unlock file: " << path0;
+					return -1;
+				}*/
                 if (p==0) {
                     N=channel_data.N2();
                     patch_data.allocate(patch_size,N);
@@ -115,7 +141,8 @@ int main(int argc, char *argv[])
                 }
             }
 			qDebug() << QString("%1 x %2 x %3").arg(patch_data.N1()).arg(patch_data.N2()).arg(patch_data.N3());
-            printf("Elapsed (ms): %d\n",timer.elapsed());
+			int elapsed=timer.elapsed();
+			printf("Elapsed (ms): %d; %g MB/sec\n",elapsed,N*patch_size*1e-6/(elapsed*1e-3));
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////////////
             //Find critical times
