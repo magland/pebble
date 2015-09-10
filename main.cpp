@@ -66,11 +66,13 @@ int main(int argc, char *argv[])
 
     //QString channels_path="/home/magland/data/EJ/channels";
 	//QString channels_path="/home/magland/data/EJ/channels";
-	QString channels_path="/dev/shm/channels";
+	//QString channels_path="/dev/shm/channels";
+	QString channels_path="/mnt/xfs1/home/magland/data/EJ/channels";
     //QString channels_path="/dev/shm/channels";
     //QString testdata_path="/home/magland/dev/pebble/testdata";
 	//QString testdata_path="/home/magland/dev/pebble/testdata";
-	QString testdata_path="/dev/shm/testdata";
+	//QString testdata_path="/dev/shm/testdata";
+	QString testdata_path="/mnt/xfs1/home/magland/dev/pebble/testdata";
 	QString locations_path=app.applicationDirPath()+"/../testdata/locations.mda";
 	QTime timer;
 
@@ -468,7 +470,7 @@ int main(int argc, char *argv[])
 			ct=0;
 			for (int n=0; n<N; n++) {
 				for (int mm=0; mm<MM; mm++) {
-                    data[ct]=full_data_ptr[ct]; ct++; //finish!!!
+//                    data[ct]=full_data_ptr[ct]; ct++; //finish!!!
 				}
 			}
 			printf("Time for preparing full data (ms): %d\n",timerA.elapsed());
