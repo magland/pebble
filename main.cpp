@@ -85,6 +85,12 @@ int main(int argc, char *argv[])
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Split into channels
     if (command=="split_into_channels") {
+        /*
+         * Read raw (filtered) data from "/home/magland/data/EJ/Spikes_all_channels_filtered.mda"
+         * Split it into channels and write separate files to [channels_path]
+         * Also create the adjacency matrix and output to [testdata_path]/AM.mda
+         *
+         */
         printf("Splitting into channels...\n");
 		if (!QFile::exists(channels_path)) QDir(QFileInfo(channels_path).path()).mkdir(QFileInfo(channels_path).fileName());
 		split_into_channels(
@@ -102,7 +108,7 @@ int main(int argc, char *argv[])
 
 	Mda AM; AM.read(testdata_path+"/AM.mda");
 
-    if (command=="stage1") {
+    if (command=="find_spike_times") {
 		if (!CLP.named_parameters.contains("channel")) {
 			printf("Missing parameter: channel\n");
 			return -1;
