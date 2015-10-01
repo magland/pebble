@@ -54,7 +54,7 @@ int main(int argc, char *argv[])
     qsrand(time(NULL));
 
     QStringList required_params;
-	QStringList optional_params; optional_params << "channel" << "neuron";
+	QStringList optional_params; optional_params << "channel" << "neuron" << "output_features";
     CLParams CLP=parse_command_line_params(argc,argv,required_params,optional_params);
     QString command=CLP.unnamed_parameters.value(0);
 
@@ -65,14 +65,14 @@ int main(int argc, char *argv[])
 	int num_features=3;
 
     //QString channels_path="/home/magland/data/EJ/channels";
-	//QString channels_path="/home/magland/data/EJ/channels";
+	QString channels_path="/home/magland/data/EJ/channels";
 	//QString channels_path="/dev/shm/channels";
-	QString channels_path="/mnt/xfs1/home/magland/data/EJ/channels";
+	//QString channels_path="/mnt/xfs1/home/magland/data/EJ/channels";
     //QString channels_path="/dev/shm/channels";
     //QString testdata_path="/home/magland/dev/pebble/testdata";
-	//QString testdata_path="/home/magland/dev/pebble/testdata";
+	QString testdata_path="/home/magland/dev/pebble/testdata";
 	//QString testdata_path="/dev/shm/testdata";
-	QString testdata_path="/mnt/xfs1/home/magland/dev/pebble/testdata";
+	//QString testdata_path="/mnt/xfs1/home/magland/dev/pebble/testdata";
 	QString locations_path=app.applicationDirPath()+"/../testdata/locations.mda";
 	QTime timer;
 
@@ -172,6 +172,11 @@ int main(int argc, char *argv[])
             //Features
             printf("Computing features... "); timer.start();
             Mda features=compute_features_from_clips(clips,num_features); //num_features x num_clips
+			if (!CLP.named_parameters.value("output_features").isEmpty()) {
+				QString path=CLP.named_parameters.value("output_features");
+				printf("Writing features to %s\n",path.toLatin1().data());
+				features.write(path);
+			}
             printf("Elapsed (ms): %d\n",timer.elapsed());
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////////////
