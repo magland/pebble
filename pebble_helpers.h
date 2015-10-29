@@ -6,7 +6,7 @@
 #include <QVector>
 
 void split_into_channels(const QString &inpath,const QString &outpath);
-Mda compute_adjacency_matrix(const Mda &locations);
+Mda compute_adjacency_matrix(const Mda &locations,double radius);
 QVector<int> find_patch_indices(const Mda &adjacency_matrix,int channel_num);
 Mda extract_clips(Mda &X,int clip_size,QVector<int> clip_times);
 int find_max(const QVector<int> &X);

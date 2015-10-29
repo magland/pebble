@@ -29,7 +29,7 @@ void split_into_channels(const QString &inpath,const QString &outpath) {
 	printf("Elapsed (ms): %d; %g MB/sec\n",elapsed,M*N*sizeof(double)*1e-6/(elapsed*1e-3));
 }
 
-Mda compute_adjacency_matrix(const Mda &locations) {
+Mda compute_adjacency_matrix(const Mda &locations,double radius) {
 	Mda ret;
 	int M=locations.N1();
 	ret.allocate(M,M);
@@ -38,7 +38,7 @@ Mda compute_adjacency_matrix(const Mda &locations) {
 			double dx=locations.value(i,0)-locations.value(j,0);
 			double dy=locations.value(i,1)-locations.value(j,1);
 			double dist=sqrt(dx*dx+dy*dy);
-			if (dist<100) ret.setValue(1,i,j);
+			if (dist<=radius) ret.setValue(1,i,j);
 		}
 	return ret;
 }

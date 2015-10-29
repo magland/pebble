@@ -54,26 +54,26 @@ int main(int argc, char *argv[])
     qsrand(time(NULL));
 
     QStringList required_params;
-	QStringList optional_params; optional_params << "channel" << "neuron" << "output_features";
+	QStringList optional_params; optional_params << "channel" << "neuron" << "output-features" << "locations-path" << "channels-path" << "testdata-path" << "adjacency-radius";
+	optional_params << "clip-size" << "critical-time-radius" << "num-features";
     CLParams CLP=parse_command_line_params(argc,argv,required_params,optional_params);
+	if (!CLP.success) {
+		printf("ERROR parasing command line parameters: %s\n",CLP.error_message.toLatin1().data());
+		exit(0);
+	}
     QString command=CLP.unnamed_parameters.value(0);
 
     printf("starting pebble...\n");
 
-	int clip_size=80;
-	int find_critical_times_radius=150;
-	int num_features=3;
+	int clip_size=CLP.named_parameters.value("clip-size","80").toInt();
+	int find_critical_times_radius=CLP.named_parameters.value("critical-time-radius","150").toInt();
+	int num_features=CLP.named_parameters.value("num-features","3").toInt();
 
-    //QString channels_path="/home/magland/data/EJ/channels";
-	QString channels_path="/home/magland/data/EJ/channels";
-	//QString channels_path="/dev/shm/channels";
-	//QString channels_path="/mnt/xfs1/home/magland/data/EJ/channels";
-    //QString channels_path="/dev/shm/channels";
-    //QString testdata_path="/home/magland/dev/pebble/testdata";
-	QString testdata_path="/home/magland/dev/pebble/testdata";
-	//QString testdata_path="/dev/shm/testdata";
-	//QString testdata_path="/mnt/xfs1/home/magland/dev/pebble/testdata";
-	QString locations_path=app.applicationDirPath()+"/../testdata/locations.mda";
+	QString input_path=CLP.unnamed_parameters.value(1,"/home/magland/data/EJ/Spikes_all_channels_filtered.mda");
+	QString channels_path=CLP.named_parameters.value("channels-path","/home/magland/data/EJ/channels");
+	QString testdata_path=CLP.named_parameters.value("testdata-path","/home/magland/dev/pebble/testdata");
+	QString locations_path=CLP.named_parameters.value("locations-path",app.applicationDirPath()+"/../testdata/locations.mda");
+	double adjacency_radius=CLP.named_parameters.value("adjacency-radius","100").toDouble();
 	QTime timer;
 
 	if (!QFile::exists(testdata_path)) QDir(QFileInfo(testdata_path).path()).mkdir(QFileInfo(testdata_path).fileName());
@@ -94,12 +94,12 @@ int main(int argc, char *argv[])
         printf("Splitting into channels...\n");
 		if (!QFile::exists(channels_path)) QDir(QFileInfo(channels_path).path()).mkdir(QFileInfo(channels_path).fileName());
 		split_into_channels(
-					"/home/magland/data/EJ/Spikes_all_channels_filtered.mda",
+					input_path,
 					channels_path
 					);
 		// compute adjacency matrix
 		printf("computing adjacency matrix...\n");
-		Mda AM0=compute_adjacency_matrix(locations);
+		Mda AM0=compute_adjacency_matrix(locations,adjacency_radius);
 		qDebug() << QString("%1 x %2").arg(AM0.N1()).arg(AM0.N2());
 		AM0.write(testdata_path+"/AM.mda");
 
@@ -172,8 +172,8 @@ int main(int argc, char *argv[])
             //Features
             printf("Computing features... "); timer.start();
             Mda features=compute_features_from_clips(clips,num_features); //num_features x num_clips
-			if (!CLP.named_parameters.value("output_features").isEmpty()) {
-				QString path=CLP.named_parameters.value("output_features");
+			if (!CLP.named_parameters.value("output-features").isEmpty()) {
+				QString path=CLP.named_parameters.value("output-features");
 				printf("Writing features to %s\n",path.toLatin1().data());
 				features.write(path);
 			}
@@ -183,7 +183,7 @@ int main(int argc, char *argv[])
             //Clustering
             printf("Clustering... "); timer.start();
             QVector<int> labels=isosplit(features);
-            labels=remove_two_closest_to_zero(features,labels);
+			//labels=remove_two_closest_to_zero(features,labels);
             int num_clusters=find_max(labels);
             printf("Found %d clusters. ",num_clusters);
             printf("Elapsed (ms): %d\n",timer.elapsed());
